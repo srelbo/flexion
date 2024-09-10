@@ -142,7 +142,7 @@ if __name__ == "__main__":
     print(f"Training stats: {train_stats}")
     test_dataset = BCIDataset(_test_file_paths, test_label_paths=_test_label_paths, mode='test', num_channels=48, window_size=40, prediction_delay=25, normalize=True, train_stats=train_stats)
 
-    batch_size = 64*20
+    batch_size = 64*36
     print(f"Batch size: {batch_size}")
     _train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
     _test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
