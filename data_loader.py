@@ -4,10 +4,11 @@ import scipy.io
 import numpy as np
 
 class BCIDataset(Dataset):
-    def __init__(self, file_paths, test_label_paths=None, mode='train'):
+    def __init__(self, file_paths, test_label_paths=None, mode='train', num_channels=48):
         self.ecog_signals = []
         self.finger_flexions = []
         self.mode = mode
+        self.num_channels = num_channels
 
         if self.mode == 'train':
             for file_path in file_paths:
@@ -28,14 +29,33 @@ class BCIDataset(Dataset):
         train_data = data['train_data']  # ECoG signals (training data)
         train_dg = data['train_dg']  # Finger flexions (training labels)
 
+        if train_data.shape[1] != self.num_channels:
+            train_data = self.adjust_channels(train_data)
+
         self.ecog_signals.append(train_data)
         self.finger_flexions.append(train_dg)
+
+    def adjust_channels(self, data):
+        """Pads or trims the data to have the correct number of channels."""
+        current_channels = data.shape[1]
+        if current_channels < self.num_channels:
+            # Pad with zeros if fewer channels
+            padding = np.zeros((data.shape[0], self.num_channels - current_channels))
+            data = np.hstack([data, padding])
+        else:
+            # Trim extra channels if there are more
+            data = data[:, :self.num_channels]
+        return data
 
     def load_test_data(self, file_path, label_path):
         data = scipy.io.loadmat(file_path)
         labels = scipy.io.loadmat(label_path)
         test_data = data['test_data']  # ECoG signals (testing data)
         test_labels = labels['test_dg']  # True finger flexions (test labels)
+
+        # Some subjects have more channels than others. Minimum number of channels is 48.
+        if test_data.shape[1] != self.num_channels:
+            test_data = self.adjust_channels(test_data)
 
         self.ecog_signals.append(test_data)
         self.finger_flexions.append(test_labels)
@@ -64,9 +84,9 @@ if __name__ == "__main__":
     ]
 
     _test_label_paths = [
-        'data/sub1_test_labels.mat',
-        'data/sub2_test_labels.mat',
-        'data/sub3_test_labels.mat'
+        'data/sub1_testlabels.mat',
+        'data/sub2_testlabels.mat',
+        'data/sub3_testlabels.mat'
     ]
 
     train_dataset = BCIDataset(_train_file_paths, mode='train')
