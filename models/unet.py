@@ -18,16 +18,16 @@ class UNet1D(nn.Module):
         self.bottleneck = self.conv_block(512, 1024)
 
         # Decoder (upsampling)
-        self.upconv4 = nn.ConvTranspose1d(1024, 512, kernel_size=2, stride=2)
+        self.upconv4 = nn.ConvTranspose1d(1024, 512, kernel_size=1, stride=1)
         self.dec4 = self.conv_block(1024, 512)
 
-        self.upconv3 = nn.ConvTranspose1d(512, 256, kernel_size=2, stride=2)
+        self.upconv3 = nn.ConvTranspose1d(512, 256, kernel_size=1, stride=1)
         self.dec3 = self.conv_block(512, 256)
 
-        self.upconv2 = nn.ConvTranspose1d(256, 128, kernel_size=2, stride=2)
+        self.upconv2 = nn.ConvTranspose1d(256, 128, kernel_size=1, stride=1)
         self.dec2 = self.conv_block(256, 128)
 
-        self.upconv1 = nn.ConvTranspose1d(128, 64, kernel_size=2, stride=2)
+        self.upconv1 = nn.ConvTranspose1d(128, 64, kernel_size=1, stride=1)
         self.dec1 = self.conv_block(128, 64)
 
         # Output layer
@@ -46,9 +46,9 @@ class UNet1D(nn.Module):
     def forward(self, x):
         # Encoding path
         enc1 = self.enc1(x)
-        enc2 = self.enc2(enc1)
-        enc3 = self.enc3(enc2)
-        enc4 = self.enc4(enc3)
+        enc2 = self.enc2(enc1)  # No pooling here
+        enc3 = self.enc3(enc2)  # No pooling here
+        enc4 = self.enc4(enc3)  # No pooling here
 
         # Bottleneck
         bottleneck = self.bottleneck(enc4)

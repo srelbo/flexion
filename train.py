@@ -32,7 +32,7 @@ class Trainer:
                 ecog_signals, finger_flexions = ecog_signals.to(self.device), finger_flexions.to(self.device)
 
                 outputs = self.model(ecog_signals)
-                loss = self.criterion(outputs, finger_flexions)
+                loss = self.criterion(outputs, finger_flexions.unsqueeze(2))
                 self.optimizer.zero_grad()
                 loss.backward()
                 self.optimizer.step()
