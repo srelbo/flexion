@@ -3,7 +3,9 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader
-import wandb  # Add this line to import wandb
+import wandb
+import numpy as np
+from sklearn.metrics import mean_absolute_error, r2_score
 
 from data_loader import BCIDataset
 from models.unet import UNet1D
@@ -38,7 +40,7 @@ class Trainer:
             for batch_idx, (ecog_signals, finger_flexions) in enumerate(self.train_loader):
                 ecog_signals, finger_flexions = ecog_signals.to(self.device), finger_flexions.to(self.device)
                 ecog_signals = ecog_signals.unsqueeze(2)  # Add channel dimension
-                finger_flexions.unsqueeze(2)
+                finger_flexions = finger_flexions.unsqueeze(2)
                 outputs = self.model(ecog_signals)
                 loss = self.criterion(outputs, finger_flexions)
                 self.optimizer.zero_grad()
@@ -66,15 +68,45 @@ class Trainer:
     def evaluate(self):
         self.model.eval()
         test_loss = 0.0
+        all_targets = []
+        all_predictions = []
+
         with torch.no_grad():
             for ecog_signals, finger_flexions in self.test_loader:
                 ecog_signals = ecog_signals.unsqueeze(2)  # Add channel dimension
+                finger_flexions = finger_flexions.unsqueeze(2)
                 ecog_signals, finger_flexions = ecog_signals.to(self.device), finger_flexions.to(self.device)
                 outputs = self.model(ecog_signals)
-                loss = self.criterion(outputs, finger_flexions.unsqueeze(2))
+
+                # Save predictions and targets to calculate human-readable metrics
+                all_predictions.append(outputs.cpu().numpy().flatten())
+                all_targets.append(finger_flexions.cpu().numpy().flatten())
+
+                # Calculate loss
+                loss = self.criterion(outputs, finger_flexions)
                 test_loss += loss.item()
 
-        return test_loss / len(self.test_loader)
+        avg_loss = test_loss / len(self.test_loader)
+
+        all_targets = np.concatenate(all_targets)
+        all_predictions = np.concatenate(all_predictions)
+
+        # Calculate MAE
+        mae = mean_absolute_error(all_targets, all_predictions)
+
+        r2 = r2_score(all_targets, all_predictions)
+
+        print(f"Test MSE Loss: {avg_loss}")
+        print(f"Mean Absolute Error (MAE): {mae}")
+        print(f"R-squared (R^2): {r2}")
+
+        wandb.log({
+            "test_mse_loss": avg_loss,
+            "test_mae": mae,
+            "test_r2": r2
+        })
+
+        return avg_loss, mae, r2
 
     def save_model(self, epoch):
         checkpoint_path = os.path.join("checkpoints", f'model_epoch_{epoch}.pth')
@@ -110,7 +142,7 @@ if __name__ == "__main__":
     print(f"Training stats: {train_stats}")
     test_dataset = BCIDataset(_test_file_paths, test_label_paths=_test_label_paths, mode='test', num_channels=48, normalize=True, train_stats=train_stats)
 
-    batch_size = 64 * 600
+    batch_size = 64 * 1200
     print(f"Batch size: {batch_size}")
     _train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
     _test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
