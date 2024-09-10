@@ -36,11 +36,11 @@ class Trainer:
             running_loss = 0.0
 
             for batch_idx, (ecog_signals, finger_flexions) in enumerate(self.train_loader):
-                ecog_signals = ecog_signals.unsqueeze(2)  # Add channel dimension
                 ecog_signals, finger_flexions = ecog_signals.to(self.device), finger_flexions.to(self.device)
-
+                ecog_signals = ecog_signals.unsqueeze(2)  # Add channel dimension
+                finger_flexions.unsqueeze(2)
                 outputs = self.model(ecog_signals)
-                loss = self.criterion(outputs, finger_flexions.unsqueeze(2))
+                loss = self.criterion(outputs, finger_flexions)
                 self.optimizer.zero_grad()
                 loss.backward()
                 self.optimizer.step()
@@ -110,7 +110,8 @@ if __name__ == "__main__":
     print(f"Training stats: {train_stats}")
     test_dataset = BCIDataset(_test_file_paths, test_label_paths=_test_label_paths, mode='test', num_channels=48, normalize=True, train_stats=train_stats)
 
-    batch_size = 64
+    batch_size = 64 * 600
+    print(f"Batch size: {batch_size}")
     _train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
     _test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
 
