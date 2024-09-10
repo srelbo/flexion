@@ -11,6 +11,7 @@ class BCIDataset(Dataset):
         self.num_channels = num_channels
 
         if self.mode == 'train':
+            # Load train data from the same files
             for file_path in file_paths:
                 self.load_train_data(file_path)
         elif self.mode == 'test':
@@ -20,20 +21,37 @@ class BCIDataset(Dataset):
             for file_path, label_path in zip(file_paths, test_label_paths):
                 self.load_test_data(file_path, label_path)
 
+        # Stack the data from all subjects
         self.ecog_signals = torch.Tensor(np.vstack(self.ecog_signals))  # Stack all subject data
         if self.mode == 'train' or self.mode == 'test':
             self.finger_flexions = torch.Tensor(np.vstack(self.finger_flexions))  # Stack all finger data
 
     def load_train_data(self, file_path):
+        """Load the train data and train_dg from the .mat file and append to the dataset"""
         data = scipy.io.loadmat(file_path)
         train_data = data['train_data']  # ECoG signals (training data)
         train_dg = data['train_dg']  # Finger flexions (training labels)
 
+        # Adjust the channels if necessary
         if train_data.shape[1] != self.num_channels:
             train_data = self.adjust_channels(train_data)
 
         self.ecog_signals.append(train_data)
         self.finger_flexions.append(train_dg)
+
+    def load_test_data(self, file_path, label_path):
+        """Load the test data and corresponding labels"""
+        data = scipy.io.loadmat(file_path)
+        labels = scipy.io.loadmat(label_path)
+        test_data = data['test_data']  # ECoG signals (testing data)
+        test_labels = labels['test_dg']  # True finger flexions (test labels)
+
+        # Adjust the channels if necessary
+        if test_data.shape[1] != self.num_channels:
+            test_data = self.adjust_channels(test_data)
+
+        self.ecog_signals.append(test_data)
+        self.finger_flexions.append(test_labels)
 
     def adjust_channels(self, data):
         """Pads or trims the data to have the correct number of channels."""
@@ -47,27 +65,11 @@ class BCIDataset(Dataset):
             data = data[:, :self.num_channels]
         return data
 
-    def load_test_data(self, file_path, label_path):
-        data = scipy.io.loadmat(file_path)
-        labels = scipy.io.loadmat(label_path)
-        test_data = data['test_data']  # ECoG signals (testing data)
-        test_labels = labels['test_dg']  # True finger flexions (test labels)
-
-        # Some subjects have more channels than others. Minimum number of channels is 48.
-        if test_data.shape[1] != self.num_channels:
-            test_data = self.adjust_channels(test_data)
-
-        self.ecog_signals.append(test_data)
-        self.finger_flexions.append(test_labels)
-
     def __len__(self):
         return len(self.ecog_signals)
 
     def __getitem__(self, idx):
-        if self.mode == 'train' or self.mode == 'test':
-            return self.ecog_signals[idx], self.finger_flexions[idx]
-        else:
-            return self.ecog_signals[idx]
+        return self.ecog_signals[idx], self.finger_flexions[idx]
 
 
 if __name__ == "__main__":
@@ -78,9 +80,9 @@ if __name__ == "__main__":
     ]
 
     _test_file_paths = [
-        'data/sub1_test_data.mat',
-        'data/sub2_test_data.mat',
-        'data/sub3_test_data.mat'
+        'data/sub1_comp.mat',
+        'data/sub2_comp.mat',
+        'data/sub3_comp.mat'
     ]
 
     _test_label_paths = [
@@ -89,7 +91,10 @@ if __name__ == "__main__":
         'data/sub3_testlabels.mat'
     ]
 
+    # Create training dataset
     train_dataset = BCIDataset(_train_file_paths, mode='train')
+
+    # Create test dataset
     test_dataset = BCIDataset(_test_file_paths, test_label_paths=_test_label_paths, mode='test')
 
     batch_size = 64
