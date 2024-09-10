@@ -4,6 +4,8 @@ import torch.nn.functional as F
 
 
 # U-Net inspired architecture
+# This was used only for testing and is not used anymore. The model will also not work with the new data loader.
+
 class UNet1D(nn.Module):
     def __init__(self, in_channels=48, out_channels=5):
         super(UNet1D, self).__init__()

@@ -15,14 +15,17 @@ class BCIDataset(Dataset):
                  mode='train',
                  num_channels=48,
                  normalize=True,
-                 train_stats=None):
+                 train_stats=None,
+                 window_size=40,  # Window size in samples
+                 prediction_delay=25):  # Delay for prediction in samples
         self.ecog_signals = []
         self.finger_flexions = []
         self.mode = mode
         self.num_channels = num_channels
         self.normalize = normalize
-
-        self.train_stats = train_stats  # Training stats (mean, std for input, min/max for labels)
+        self.window_size = window_size
+        self.prediction_delay = prediction_delay
+        self.train_stats = train_stats
 
         if self.mode == 'train':
             # Load train data from the same files
@@ -56,6 +59,10 @@ class BCIDataset(Dataset):
         if self.mode == 'train' or self.mode == 'test':
             self.finger_flexions = torch.Tensor(np.vstack(self.finger_flexions))  # Stack all finger data
 
+        self.ecog_windows = []
+        self.flexion_labels = []
+        self.create_sliding_windows()  # Create sliding windows for ECoG signals and labels
+
     def load_train_data(self, file_path):
         """Load the train data and train_dg from the .mat file and append to the dataset"""
         data = scipy.io.loadmat(file_path)
@@ -82,6 +89,24 @@ class BCIDataset(Dataset):
 
         self.ecog_signals.append(test_data)
         self.finger_flexions.append(test_labels)
+
+    def create_sliding_windows(self):
+        """Creates sliding windows for ECoG signals and finger flexion labels."""
+        windows = []
+        labels = []
+        total_samples = len(self.ecog_signals)
+
+        for i in range(total_samples - self.window_size - self.prediction_delay):
+            # Extract window of ecog signals
+            window = self.ecog_signals[i:i + self.window_size]
+            windows.append(window)
+
+            # Label is the finger flexion at the end of the window, after prediction delay
+            label = self.finger_flexions[i + self.window_size + self.prediction_delay]
+            labels.append(label)
+
+        self.ecog_windows = torch.stack(windows)
+        self.flexion_labels = torch.stack(labels)
 
     def adjust_channels(self, data):
         """Pads or trims the data to have the correct number of channels."""
@@ -120,10 +145,10 @@ class BCIDataset(Dataset):
         return normalized_labels
 
     def __len__(self):
-        return len(self.ecog_signals)
+        return len(self.ecog_windows)
 
     def __getitem__(self, idx):
-        return self.ecog_signals[idx], self.finger_flexions[idx]
+        return self.ecog_windows[idx], self.flexion_labels[idx]
 
 
 if __name__ == "__main__":

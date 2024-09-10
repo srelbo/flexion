@@ -8,6 +8,7 @@ import numpy as np
 from sklearn.metrics import mean_absolute_error, r2_score
 
 from data_loader import BCIDataset
+from models.transformer import TransformerModel
 from models.unet import UNet1D
 
 
@@ -48,8 +49,6 @@ class Trainer:
 
             for batch_idx, (ecog_signals, finger_flexions) in enumerate(self.train_loader):
                 ecog_signals, finger_flexions = ecog_signals.to(self.device), finger_flexions.to(self.device)
-                ecog_signals = ecog_signals.unsqueeze(2)  # Add channel dimension
-                finger_flexions = finger_flexions.unsqueeze(2)
                 outputs = self.model(ecog_signals)
                 loss = self.criterion(outputs, finger_flexions)
                 self.optimizer.zero_grad()
@@ -81,8 +80,6 @@ class Trainer:
 
         with torch.no_grad():
             for ecog_signals, finger_flexions in self.test_loader:
-                ecog_signals = ecog_signals.unsqueeze(2)  # Add channel dimension
-                finger_flexions = finger_flexions.unsqueeze(2)
                 ecog_signals, finger_flexions = ecog_signals.to(self.device), finger_flexions.to(self.device)
                 outputs = self.model(ecog_signals)
 
@@ -135,21 +132,21 @@ if __name__ == "__main__":
         'data/sub3_testlabels.mat'
     ]
 
-    train_dataset = BCIDataset(_train_file_paths, mode='train', num_channels=48, normalize=True)
+    train_dataset = BCIDataset(_train_file_paths, mode='train', num_channels=48, window_size=40, prediction_delay=25, normalize=True)
     train_stats = (train_dataset.mean, train_dataset.std, train_dataset.label_min, train_dataset.label_max)
     print(f"Training stats: {train_stats}")
-    test_dataset = BCIDataset(_test_file_paths, test_label_paths=_test_label_paths, mode='test', num_channels=48, normalize=True, train_stats=train_stats)
+    test_dataset = BCIDataset(_test_file_paths, test_label_paths=_test_label_paths, mode='test', num_channels=48, window_size=40, prediction_delay=25, normalize=True, train_stats=train_stats)
 
-    batch_size = 64 * 1200
+    batch_size = 64
     print(f"Batch size: {batch_size}")
     _train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
     _test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
 
-    _model = UNet1D(in_channels=48, out_channels=5)
+    _model = TransformerModel(num_channels=48, window_size=40, num_outputs=5, d_model=512, num_heads=8,
+                              num_encoder_layers=6)
     trainer = Trainer(_model, _train_loader, _test_loader, num_epochs=50, learning_rate=0.001)
     trainer.train()
 
     final_test_loss = trainer.evaluate()
     print(f"Final Test Loss: {final_test_loss}")
-    wandb.log({"final_test_loss": final_test_loss})
     trainer.save_model(50)
