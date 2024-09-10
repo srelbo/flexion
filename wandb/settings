@@ -1,0 +1,5 @@
+[default]
+entity = saravanr
+project = flexion
+base_url = https://api.wandb.ai
+

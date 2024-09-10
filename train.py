@@ -1,9 +1,9 @@
 import os
-
 import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader
+import wandb  # Add this line to import wandb
 
 from data_loader import BCIDataset
 from models.unet import UNet1D
@@ -22,13 +22,21 @@ class Trainer:
         self.criterion = nn.MSELoss()  # Mean Squared Error loss for regression
         self.optimizer = optim.Adam(self.model.parameters(), lr=self.learning_rate)
 
+        # Initialize WandB
+        wandb.init(project="flexion", config={
+            "learning_rate": self.learning_rate,
+            "epochs": self.num_epochs,
+            "batch_size": len(self.train_loader.dataset)
+        })
+        wandb.watch(self.model, log="all")
+
     def train(self):
         for epoch in range(self.num_epochs):
             self.model.train()
             running_loss = 0.0
 
             for batch_idx, (ecog_signals, finger_flexions) in enumerate(self.train_loader):
-                ecog_signals = ecog_signals.unsqueeze(2) # Add channel dimension
+                ecog_signals = ecog_signals.unsqueeze(2)  # Add channel dimension
                 ecog_signals, finger_flexions = ecog_signals.to(self.device), finger_flexions.to(self.device)
 
                 outputs = self.model(ecog_signals)
@@ -42,31 +50,41 @@ class Trainer:
             avg_loss = running_loss / len(self.train_loader)
             print(f"Epoch [{epoch + 1}/{self.num_epochs}], Loss: {avg_loss}")
 
+            # Log training loss to WandB
+            wandb.log({"epoch": epoch + 1, "train_loss": avg_loss})
+
+            # Save model and evaluate every 10 epochs
             if (epoch + 1) % 10 == 0:
                 self.save_model(epoch + 1)
-
-            if (epoch + 1) % 10 == 0:
                 test_loss = self.evaluate()
                 print(f"Test Loss at Epoch {epoch + 1}: {test_loss}")
+                wandb.log({"epoch": epoch + 1, "test_loss": test_loss})
 
         print("Training complete.")
+        wandb.finish()
 
     def evaluate(self):
         self.model.eval()
         test_loss = 0.0
         with torch.no_grad():
             for ecog_signals, finger_flexions in self.test_loader:
+                ecog_signals = ecog_signals.unsqueeze(2)  # Add channel dimension
                 ecog_signals, finger_flexions = ecog_signals.to(self.device), finger_flexions.to(self.device)
                 outputs = self.model(ecog_signals)
-                loss = self.criterion(outputs, finger_flexions)
+                loss = self.criterion(outputs, finger_flexions.unsqueeze(2))
                 test_loss += loss.item()
 
         return test_loss / len(self.test_loader)
 
     def save_model(self, epoch):
-        checkpoint_path = os.path.join(self.checkpoint_dir, f'model_epoch_{epoch}.pth')
+        checkpoint_path = os.path.join("checkpoints", f'model_epoch_{epoch}.pth')
+        os.makedirs("checkpoints", exist_ok=True)
         torch.save(self.model.state_dict(), checkpoint_path)
         print(f"Model checkpoint saved at {checkpoint_path}")
+
+        # Log model checkpoint to WandB
+        wandb.save(checkpoint_path)
+
 
 if __name__ == "__main__":
     _train_file_paths = [
@@ -102,3 +120,4 @@ if __name__ == "__main__":
 
     final_test_loss = trainer.evaluate()
     print(f"Final Test Loss: {final_test_loss}")
+    wandb.log({"final_test_loss": final_test_loss})
