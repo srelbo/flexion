@@ -4,7 +4,7 @@ import scipy.io
 import numpy as np
 
 class BCIDataset(Dataset):
-    def __init__(self, file_paths, test_label_paths=None, mode='train', num_channels=48):
+    def __init__(self, file_paths, test_label_paths=None, mode='train', num_channels=48, normalize=True):
         self.ecog_signals = []
         self.finger_flexions = []
         self.mode = mode
@@ -23,6 +23,11 @@ class BCIDataset(Dataset):
 
         # Stack the data from all subjects
         self.ecog_signals = torch.Tensor(np.vstack(self.ecog_signals))  # Stack all subject data
+        self.normalize = normalize
+        if self.normalize:
+            self.ecog_signals = self.normalize_data(self.ecog_signals)
+            self.finger_flexions = self.normalize_labels(self.finger_flexions)
+
         if self.mode == 'train' or self.mode == 'test':
             self.finger_flexions = torch.Tensor(np.vstack(self.finger_flexions))  # Stack all finger data
 
@@ -64,6 +69,21 @@ class BCIDataset(Dataset):
             # Trim extra channels if there are more
             data = data[:, :self.num_channels]
         return data
+
+    def normalize_data(self, data):
+        """Apply Z-score normalization to the ECoG signals (across each channel)."""
+        mean = torch.mean(data, dim=0)  # Calculate the mean per channel
+        std = torch.std(data, dim=0)  # Calculate the standard deviation per channel
+        normalized_data = (data - mean) / std  # Apply Z-score normalization
+        return normalized_data
+
+    def normalize_labels(self, labels):
+        """Apply Min-Max normalization to the finger flexion labels."""
+        labels = torch.Tensor(np.vstack(labels))  # Convert to a tensor
+        min_vals = torch.min(labels, dim=0).values  # Min values per finger
+        max_vals = torch.max(labels, dim=0).values  # Max values per finger
+        normalized_labels = (labels - min_vals) / (max_vals - min_vals)  # Min-Max normalization
+        return normalized_labels
 
     def __len__(self):
         return len(self.ecog_signals)
