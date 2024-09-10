@@ -32,6 +32,15 @@ class Trainer:
         })
         wandb.watch(self.model, log="all")
 
+    def save_model(self, epoch):
+        checkpoint_path = os.path.join("checkpoints", f'model_epoch_{epoch}.pth')
+        os.makedirs("checkpoints", exist_ok=True)
+        torch.save(self.model.state_dict(), checkpoint_path)
+        print(f"Model checkpoint saved at {checkpoint_path}")
+
+        # Log model checkpoint to WandB
+        wandb.save(checkpoint_path)
+
     def train(self):
         for epoch in range(self.num_epochs):
             self.model.train()
@@ -52,15 +61,14 @@ class Trainer:
             avg_loss = running_loss / len(self.train_loader)
             print(f"Epoch [{epoch + 1}/{self.num_epochs}], Loss: {avg_loss}")
 
-            # Log training loss to WandB
             wandb.log({"epoch": epoch + 1, "train_loss": avg_loss})
+            test_loss = self.evaluate()
+            print(f"Test Loss at Epoch {epoch + 1}: {test_loss}")
+            wandb.log({"epoch": epoch + 1, "test_loss": test_loss})
 
             # Save model and evaluate every 10 epochs
             if (epoch + 1) % 10 == 0:
                 self.save_model(epoch + 1)
-                test_loss = self.evaluate()
-                print(f"Test Loss at Epoch {epoch + 1}: {test_loss}")
-                wandb.log({"epoch": epoch + 1, "test_loss": test_loss})
 
         print("Training complete.")
         wandb.finish()
@@ -108,16 +116,6 @@ class Trainer:
 
         return avg_loss, mae, r2
 
-    def save_model(self, epoch):
-        checkpoint_path = os.path.join("checkpoints", f'model_epoch_{epoch}.pth')
-        os.makedirs("checkpoints", exist_ok=True)
-        torch.save(self.model.state_dict(), checkpoint_path)
-        print(f"Model checkpoint saved at {checkpoint_path}")
-
-        # Log model checkpoint to WandB
-        wandb.save(checkpoint_path)
-
-
 if __name__ == "__main__":
     _train_file_paths = [
         'data/sub1_comp.mat',
@@ -154,3 +152,4 @@ if __name__ == "__main__":
     final_test_loss = trainer.evaluate()
     print(f"Final Test Loss: {final_test_loss}")
     wandb.log({"final_test_loss": final_test_loss})
+    trainer.save_model(50)
