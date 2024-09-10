@@ -3,6 +3,8 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader
+from tqdm import tqdm
+
 import wandb
 import numpy as np
 from sklearn.metrics import mean_absolute_error, r2_score
@@ -47,7 +49,10 @@ class Trainer:
             self.model.train()
             running_loss = 0.0
 
-            for batch_idx, (ecog_signals, finger_flexions) in enumerate(self.train_loader):
+            batch_loop = tqdm(enumerate(self.train_loader), total=len(self.train_loader),
+                              desc=f"Epoch [{epoch + 1}/{self.num_epochs}]")
+
+            for batch_idx, (ecog_signals, finger_flexions) in batch_loop:
                 ecog_signals, finger_flexions = ecog_signals.to(self.device), finger_flexions.to(self.device)
                 outputs = self.model(ecog_signals)
                 loss = self.criterion(outputs, finger_flexions)
@@ -137,7 +142,7 @@ if __name__ == "__main__":
     print(f"Training stats: {train_stats}")
     test_dataset = BCIDataset(_test_file_paths, test_label_paths=_test_label_paths, mode='test', num_channels=48, window_size=40, prediction_delay=25, normalize=True, train_stats=train_stats)
 
-    batch_size = 64
+    batch_size = 64*20
     print(f"Batch size: {batch_size}")
     _train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
     _test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
